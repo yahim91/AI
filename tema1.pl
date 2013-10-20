@@ -134,10 +134,12 @@ select_best_portal(Best_Portal, [Portal | RPortals], New_Portal, Energy, Loc, Ga
                                                                   BestEnergy).
 
 
-move(Place, Energy,      _, Loc,           _,  _,  _, GateEnergy,           _, Sol):- get_coord(Place, X, Y),
-                                                                                 member([X, Y, gate], Loc), Sol = [].
+move(Place, Energy,      _, Loc,           _,  _,  _, GateEnergy,            _, Path, Sol):- get_coord(Place, X, Y),
+                                                                                 member([X, Y, gate], Loc), Sol = Path,
+                                                                                 print('Path is : '),
+                                                                                 print(Sol),!.
 
-move(Place, Energy, Places, Loc, Portal_List, SE, SG, GateEnergy, PacketEnergy, Sol):- get_coord(Place, X, Y),
+move(Place, Energy, Places, Loc, Portal_List, SE, SG, GateEnergy, PacketEnergy, Path, Sol):- get_coord(Place, X, Y),
                       get_signals([X, Y], Loc, SG, SE, 0, 0, S, G),
                       generate_portal([X, Y], Places, Portal_List, NPortal_List), !,
                       member([[X, Y], Portals], NPortal_List),
@@ -150,14 +152,14 @@ move(Place, Energy, Places, Loc, Portal_List, SE, SG, GateEnergy, PacketEnergy, 
                       get_energy([NX, NY], Loc, E, PacketEnergy),
                       New_Energy is E + Energy,
                       replace([NX, NY, energy], [NX, NY], Loc, New_Loc),
-                      move([NX, NY], New_Energy, Places, New_Loc, Portal_List, SE, SG, GateEnergy, PacketEnergy, Sol).
+                      move([NX, NY], New_Energy, Places, New_Loc, Portal_List, SE, SG, GateEnergy, PacketEnergy, [[NX, NY] | Path], Sol).
 
 go(problema(Loc, Packets, Gate), Sol):- member(Initial, Loc),
-                                           Initial = [_, _, initial],
+                                           Initial = [X, Y, initial],
                                            get_places(Loc, [], Places),
                                            Packets = pachete(SE, PacketEnergy),
                                            Gate = poarta(SG, GateEnergy),
-                                           move(Initial, 0, Places, Loc, [], SE, SG, GateEnergy, PacketEnergy, Sol).
+                                           move(Initial, 0, Places, Loc, [], SE, SG, GateEnergy, PacketEnergy, [[X, Y]], Sol).
 
 %go(problema([
 %            [15, 15], [43, 5], [9, 25, initial], [25, 25, gate],
