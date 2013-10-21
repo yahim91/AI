@@ -18,6 +18,12 @@ get_energy([X, Y], Loc, PE, PE):- member([X, Y, energy], Loc).
 get_original_loc([X, Y], Loc, [X, Y]):- not(member([X, Y, _], Loc)).
 get_original_loc([X, Y], Loc, [X, Y, S]):- member([X, Y, S], Loc). 
 
+get_hist([X,Y], Hist, 0):- not(member([X, Y, _], Hist)).
+get_hist([X,Y], Hist, H):- member([X, Y, H], Hist).
+
+update_hist([X,Y], NH, Hist, NHist):- not(member([X, Y, _], Hist)), NHist = [[X, Y, NH] | Hist].
+update_hist([X,Y], NH, Hist, NHist):- member([X,Y,_], Hist), replace([X,Y,_], [X,Y,NH], Hist, NHist).
+
 % prints the reversed solution
 print_path([]).
 print_path([S|T]):- print_path(T), write(S), write(' ').
@@ -131,21 +137,21 @@ generate_portal(Place, Places, Portal_List, NPortal_List, Portal_Size, SE, New_P
 
 
 % select best portal based on signal information
-select_best_portal(Best_Portal, [], Best_Portal,     _,    _,        _,       _).
+select_best_portal(Best_Portal, [], Best_Portal,     _,    _,        _,       _, _).
 
-select_best_portal(_, Portals, New_Portal, _, Loc, _, _):- findall(SE,
-                                                                    (member([[NX, NY], SE, _], Portals),
-                                                                     not(member([NX, NY, gate], Loc))),
-                                                                     List),
-                                                                length(List, LP),
-                                                                length(Portals, LP),
-                                                                X is random(LP),
-                                                                nth0(X, Portals, New_Portal).
+%select_best_portal(_, Portals, New_Portal, _, Loc, _, _):- not((member([[NX, NY], S, _], Portals),
+%                                                         S \= 0,
+%                                                         not(member([NX, NY, gate], Loc)))),
+%                                                        findall([[X, Y], SE, SG], (member([[X,Y],SE, SG], Portals),
+%                                                                 not(member([X, Y, gate], Loc))), L),
+%                                                        length(L, LP),
+%                                                        LP \= 0,
+%                                                        X is random(LP), nth0(X, L, New_Portal), print('here').
 
                                                                                             
 
 
-select_best_portal(Best_Portal, [Portal | RPortals], New_Portal, Energy, Loc, GateEnergy, BestEnergy):- Portal = [[X, Y],   _,  _],
+select_best_portal(Best_Portal, [Portal | RPortals], New_Portal, Energy, Loc, GateEnergy, BestEnergy, Hist):- Portal = [[X, Y],   _,  _],
                                                               member([X, Y, gate], Loc),
                                                               Energy < GateEnergy,
                                                               select_best_portal(Best_Portal,
@@ -154,47 +160,74 @@ select_best_portal(Best_Portal, [Portal | RPortals], New_Portal, Energy, Loc, Ga
                                                                   Energy,
                                                                   Loc,
                                                                   GateEnergy,
-                                                                  BestEnergy).
+                                                                  BestEnergy,
+                                                                  Hist).
 
-select_best_portal(    _, [Portal |        _], Portal, Energy, Loc, GateEnergy,             _):- Portal = [[X, Y], _, _],
+select_best_portal(    _, [Portal |        _], Portal, Energy, Loc, GateEnergy,             _, Hist):- Portal = [[X, Y], _, _],
                                                               member([X, Y, gate], Loc),
                                                               Energy >= GateEnergy.
 
-select_best_portal(    _, [Portal | RPortals], New_Portal, Energy, Loc, GateEnergy, BestEnergy):- Portal = [[_, _], SE, _],
-                                                              SE >= BestEnergy,
+select_best_portal(    _, [Portal | RPortals], New_Portal, Energy, Loc, GateEnergy, BestEnergy, Hist):- Portal = [[X, Y], SE, _],
+                                                              get_hist([X,Y], Hist, H),
+                                                              Score is SE - H,
+                                                              Score >= BestEnergy,
                                                               select_best_portal(Portal,
                                                                   RPortals,
                                                                   New_Portal,
                                                                   Energy,
                                                                   Loc,
                                                                   GateEnergy,
-                                                                  SE).
+                                                                  Score,
+                                                                  Hist).
 
-select_best_portal(Best_Portal, [Portal | RPortals], New_Portal, Energy, Loc, GateEnergy, BestEnergy):- Portal = [[_, _], SE, _],
-                                                              SE < BestEnergy,
+select_best_portal(Best_Portal, [Portal | RPortals], New_Portal, Energy, Loc, GateEnergy, BestEnergy, Hist):- Portal = [[X, Y], SE, _],
+                                                              get_hist([X,Y], Hist, H),
+                                                              Score is SE - H,
+                                                              Score < BestEnergy,
                                                               select_best_portal(Best_Portal,
                                                                   RPortals,
                                                                   New_Portal,
                                                                   Energy,
                                                                   Loc,
                                                                   GateEnergy,
-                                                                  BestEnergy).
+                                                                  BestEnergy,
+                                                                  Hist).
 
 % make a move
+move(_, Energy,      _,   Loc,   Portal_List,  _,  _, GateEnergy,            _, _,  Portal_Size, [], S, Hist):- S == 25, print(Hist), nl.
 
-%move(Place, Energy,      _,   _,   Portal_List,  _,  _,          _,            _,    _,  Portal_Size, Sol):- 
-%                                                                                                 check_portals(Portal_List, 
-move(Place, Energy,      _, Loc,           _, SE, SG, GateEnergy,            _, Path,  _, Sol):- get_coord(Place, X, Y),
+%move(_, _,      _,   Loc,   Portal_List,  _,  _,    _,            _, _,  Portal_Size, _):- not((member([[X, Y], Portals], Portal_List),
+%                                                                                        member([[X, Y], Size], Portal_Size),
+%                                                                                        length(Portals, LSize),
+%                                                                                        LSize < Size)),
+%                                                                                        print('here'), nl,
+%                                                                                        not((member([[NX, NY], _], Portal_List),
+%                                                                                       member([NX, NY, gate], Loc))),
+%                                                                                       Portal_List \= [],
+%                                                                                       write('There is no solution: No route to gate'), nl.
+
+move(_, Energy,      _,   Loc,   Portal_List,  _,  _, GateEnergy,            _, _,  Portal_Size, _, S, Hist):- Portal_List \= [],
+                                                                                        not((member([[X, Y], Portals], Portal_List),
+                                                                                        not(member([X, Y, gate], Loc)),
+                                                                                        member([[X, Y], Size], Portal_Size),
+                                                                                        length(Portals, LSize),
+                                                                                        LSize < Size)),
+                                                                                        not((member([[NX, NY], _], Portal_List),
+                                                                                        member([NX, NY, energy], Loc))),
+                                                                                        Energy < GateEnergy,
+                                                                                        write('There is no solution'), nl.
+                                                                                        
+move(Place, Energy,      _, Loc,           _, SE, SG, GateEnergy,            _, Path,  _, Sol, Sum, Hist):- get_coord(Place, X, Y),
                                                                                  member([X, Y, gate], Loc),
                                                                                  Sol = Path,
                                                                                  get_signals([X, Y], Loc, SG, SE, 0, 0, S, G),
                                                                                  print_current_loc_info(X, Y, Energy, G, S), 
-                                                                                 write(': Done'), nl,
                                                                                  Energy > GateEnergy,
+                                                                                 write(': Done'), nl,
                                                                                  print('Path is : '),
                                                                                  print_path(Sol),!.
 
-move(Place, Energy, Places, Loc, Portal_List, SE, SG, GateEnergy, PacketEnergy, Path, Portal_Size, Sol):- get_coord(Place, X, Y),
+move(Place, Energy, Places, Loc, Portal_List, SE, SG, GateEnergy, PacketEnergy, Path, Portal_Size, Sol, Sum, Hist):- get_coord(Place, X, Y),
                       get_signals([X, Y], Loc, SG, SE, 0, 0, S, G),
                       generate_portal([X, Y], Places, Portal_List, NPortal_List, Portal_Size, SE, New_Portal_Size), !,
                       member([[X, Y], Portals], NPortal_List),
@@ -202,15 +235,19 @@ move(Place, Energy, Places, Loc, Portal_List, SE, SG, GateEnergy, PacketEnergy, 
                       write(':  '),
                       compute_signal_for_portals(Portals, Loc, SG, SE, [], NewP),nl,
                       NewP = [H | _],
-                      select_best_portal(H, NewP, New_Portal, Energy, Loc, GateEnergy, 0),!,
+                      select_best_portal(H, NewP, New_Portal, Energy, Loc, GateEnergy, -100, Hist),!,
                       New_Portal = [[NX, NY], _, _],
                       get_energy([NX, NY], Loc, E, PacketEnergy),
                       New_Energy is E + Energy,
                       get_original_loc([NX, NY], Loc, CurrLoc),
                       replace([NX, NY, energy], [NX, NY], Loc, New_Loc),
+                      NewS is Sum + 1,
+                      get_hist([NX, NY], Hist, Visited),
+                      NH is Visited + 1,
+                      update_hist([NX,NY], NH, Hist, NHist),
                       move([NX, NY],
                         New_Energy,
-                        Places, New_Loc, NPortal_List, SE, SG, GateEnergy, PacketEnergy, [CurrLoc | Path], New_Portal_Size, Sol).
+                        Places, New_Loc, NPortal_List, SE, SG, GateEnergy, PacketEnergy, [CurrLoc | Path], New_Portal_Size, Sol, NewS, NHist).
 
 % start the quest
 go(problema(Loc, Packets, Gate), Sol):- member(Initial, Loc),
@@ -218,7 +255,8 @@ go(problema(Loc, Packets, Gate), Sol):- member(Initial, Loc),
                                            get_places(Loc, [], Places),
                                            Packets = pachete(SE, PacketEnergy),
                                            Gate = poarta(SG, GateEnergy),
-                                           move(Initial, 0, Places, Loc, [], SE, SG, GateEnergy, PacketEnergy, [[X, Y, initial]], [], Sol).
+                                           move(Initial, 0, Places, Loc, [], SE, SG, GateEnergy, PacketEnergy, [[X, Y, initial]], [], Sol, 0,
+                                           [[X,Y, 1]]).
 
 %go(problema([
 %            [15, 15], [43, 5], [9, 25, initial], [25, 25, gate],   
