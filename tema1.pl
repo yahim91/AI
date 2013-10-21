@@ -1,18 +1,22 @@
-
-% replace O in a list with R
+% replace O with Rin a list
 replace(_, _, [], []).
 replace(O, R, [O|T], [R | T2]):- replace(O, R, T, T2).
 replace(O, R, [H|T], [H | T2]):- H \= O, replace(O, R, T, T2).
 
+% get coordinates from location = [X, Y, _] or place = [X, Y]
 get_coord(Loc, X, Y):- Loc = [X, Y].
 get_coord(Loc, X, Y):- Loc = [X, Y, _].
 
+% get max of 2 var
 max(A, B, A):- A >= B.
 max(A, B, B):- B > A.
-get_energy([X, Y], Loc, 0, PE):- not(member([X, Y, energy], Loc)).
+
+% get energy of a place
+get_energy([X, Y], Loc, 0,  _):- not(member([X, Y, energy], Loc)).
 get_energy([X, Y], Loc, PE, PE):- member([X, Y, energy], Loc).
 
-get_signals(_, [], EG, EI, E, G, E, G).
+% compute signals in a certain location
+get_signals(_, [],   _,  _, E, G, E, G).
 get_signals(Curr_place, [Loc | RL], EG, EI, E, G, FE, FG):- Loc = [X, Y, gate],
                                                        Curr_place = [MX, MY],
                                                        Dist is abs(MX - X) + abs(MY - Y),
@@ -29,16 +33,17 @@ get_signals(Curr_place, [Loc | RL], EG, EI, E, G, FE, FG):- Loc = [X, Y, energy]
                                                        NE is NI + E,
                                                        get_signals(Curr_place, RL, EG, EI, NE, G, FE, FG).
 
-get_signals(Curr_place, [Loc | RL], EG, EI, E, G, FE, FG):- get_signals(Curr_place, RL, EG, EI, E, G, FE, FG).
+get_signals(Curr_place, [   _ | RL], EG, EI, E, G, FE, FG):- get_signals(Curr_place, RL, EG, EI, E, G, FE, FG).
 
+% transform all elements of type [X, Y, _] to [X, Y]
 get_places([], Places, Places).
 get_places([Loc|RL], Places, New_Places):- Loc = [X, Y, _],
                                            get_places(RL, [[X,Y] | Places], New_Places).
 
-get_places([Loc|RL], Places, New_Places):- Loc = [X, Y],
+get_places([Loc|RL], Places, New_Places):- Loc = [_, _],
                                            get_places(RL, [Loc | Places], New_Places).
 
-                                                    
+% print portal information                   
 print_portal_info([X, Y], S, G):- write('[ '),
                                   write(X),
                                   write(', '),
@@ -49,6 +54,7 @@ print_portal_info([X, Y], S, G):- write('[ '),
                                   write(G),
                                   write(' ]').
 
+% print location information
 print_current_loc_info(X, Y, E, S, G):- write('[ '),
                                         write(X),
                                         write(', '),
@@ -61,12 +67,15 @@ print_current_loc_info(X, Y, E, S, G):- write('[ '),
                                         write(G),
                                         write(' ]').
 
-compute_signal_for_portals([], Loc, EG, EI, P, P).
+% compute information for a list of portals
+compute_signal_for_portals([],    _,   _,   _, P, P).
 compute_signal_for_portals([Portal | RP], Loc, EG, EI, P, NewP):- get_signals(Portal, Loc, EG, EI, 0, 0, FE, FG), !,
                                                                   print_portal_info(Portal, FE, FG),
                                                                   write('   '),
                                                                   compute_signal_for_portals(RP, Loc, EG, EI, [[Portal, FE, FG] | P], NewP).
 
+% update all other lists of portals with the new portal a location
+% added so they can be bidirectional
 update_portal_list(Place, New_Portal, Portal_List, New_Portal_List):- not(member([New_Portal, _], Portal_List)),
                                                                       New_Portal_List = [[New_Portal, [Place]] | Portal_List].
 
@@ -76,8 +85,8 @@ update_portal_list(Place, New_Portal, Portal_List, New_Portal_List):- member([Ne
                                                                           [New_Portal, [Place | Portals]],
                                                                           Portal_List,
                                                                           New_Portal_List).
-                                                                      
-generate_portal(Place, Places, Portal_List, Portal_List):- member([Place, Portals], Portal_List),
+% generate portals for of a location unless they are already generated     
+generate_portal(Place,      _, Portal_List, Portal_List):- member([Place, Portals], Portal_List),
                                               length(Portals, 3).
 
 generate_portal(Place, Places, Portal_List, NPortal_List):- member([Place, Portals], Portal_List),
@@ -92,13 +101,14 @@ generate_portal(Place, Places, Portal_List, NPortal_List):- member([Place, Porta
                                                             replace([Place, Portals], [Place, [New_Portal | Portals]], Updated_Portal_List, PL),
                                                             generate_portal(Place, Places, PL, NPortal_List).
 
-generate_portal(Place, Places, Portal_List, NPortal_List):- not(member([Place, Portals], Portal_List)),
+generate_portal(Place, Places, Portal_List, NPortal_List):- not(member([Place, _], Portal_List)),
                                                             generate_portal(Place, Places, [[Place, []] | Portal_List],NPortal_List).
 
 
-select_best_portal(Best_Portal, [], Best_Portal, Energy, Loc, GateEnergy, BestEnergy).
+% select best portal based on signal information
+select_best_portal(Best_Portal, [], Best_Portal,     _,    _,        _,       _).
 
-select_best_portal(Best_Portal, [Portal | RPortals], New_Portal, Energy, Loc, GateEnergy, BestEnergy):- Portal = [[X, Y], SE, SG],
+select_best_portal(Best_Portal, [Portal | RPortals], New_Portal, Energy, Loc, GateEnergy, BestEnergy):- Portal = [[X, Y],   _,  _],
                                                               member([X, Y, gate], Loc),
                                                               Energy < GateEnergy,
                                                               select_best_portal(Best_Portal,
@@ -109,11 +119,11 @@ select_best_portal(Best_Portal, [Portal | RPortals], New_Portal, Energy, Loc, Ga
                                                                   GateEnergy,
                                                                   BestEnergy).
 
-select_best_portal(Best_Portal, [Portal | RPortals], Portal, Energy, Loc, GateEnergy, BestEnergy):- Portal = [[X, Y], SE, SG],
+select_best_portal(    _, [Portal |        _], Portal, Energy, Loc, GateEnergy,             _):- Portal = [[X, Y], _, _],
                                                               member([X, Y, gate], Loc),
                                                               Energy >= GateEnergy.
 
-select_best_portal(Best_Portal, [Portal | RPortals], New_Portal, Energy, Loc, GateEnergy, BestEnergy):- Portal = [[X, Y], SE, SG],
+select_best_portal(    _, [Portal | RPortals], New_Portal, Energy, Loc, GateEnergy, BestEnergy):- Portal = [[_, _], SE, _],
                                                               SE >= BestEnergy,
                                                               select_best_portal(Portal,
                                                                   RPortals,
@@ -123,7 +133,7 @@ select_best_portal(Best_Portal, [Portal | RPortals], New_Portal, Energy, Loc, Ga
                                                                   GateEnergy,
                                                                   SE).
 
-select_best_portal(Best_Portal, [Portal | RPortals], New_Portal, Energy, Loc, GateEnergy, BestEnergy):- Portal = [[X, Y], SE, SG],
+select_best_portal(Best_Portal, [Portal | RPortals], New_Portal, Energy, Loc, GateEnergy, BestEnergy):- Portal = [[_, _], SE, _],
                                                               SE < BestEnergy,
                                                               select_best_portal(Best_Portal,
                                                                   RPortals,
@@ -134,8 +144,11 @@ select_best_portal(Best_Portal, [Portal | RPortals], New_Portal, Energy, Loc, Ga
                                                                   BestEnergy).
 
 
+% make a move
 move(Place, Energy,      _, Loc,           _,  _,  _, GateEnergy,            _, Path, Sol):- get_coord(Place, X, Y),
-                                                                                 member([X, Y, gate], Loc), Sol = Path,
+                                                                                 member([X, Y, gate], Loc),
+                                                                                 Sol = Path,
+                                                                                 Energy > GateEnergy,
                                                                                  print('Path is : '),
                                                                                  print(Sol),!.
 
@@ -146,7 +159,7 @@ move(Place, Energy, Places, Loc, Portal_List, SE, SG, GateEnergy, PacketEnergy, 
                       print_current_loc_info(X, Y, Energy, G, S),
                       write(':  '),
                       compute_signal_for_portals(Portals, Loc, SG, SE, [], NewP),nl,
-                      NewP = [H | RNewP],
+                      NewP = [H | _],
                       select_best_portal(H, NewP, New_Portal, Energy, Loc, GateEnergy, 0),!,
                       New_Portal = [[NX, NY], _, _],
                       get_energy([NX, NY], Loc, E, PacketEnergy),
@@ -154,6 +167,7 @@ move(Place, Energy, Places, Loc, Portal_List, SE, SG, GateEnergy, PacketEnergy, 
                       replace([NX, NY, energy], [NX, NY], Loc, New_Loc),
                       move([NX, NY], New_Energy, Places, New_Loc, Portal_List, SE, SG, GateEnergy, PacketEnergy, [[NX, NY] | Path], Sol).
 
+% start the quest
 go(problema(Loc, Packets, Gate), Sol):- member(Initial, Loc),
                                            Initial = [X, Y, initial],
                                            get_places(Loc, [], Places),
