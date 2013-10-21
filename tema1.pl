@@ -56,9 +56,9 @@ print_portal_info([X, Y], S, G):- write('[ '),
                                   write(', '),
                                   write(Y),
                                   write(' | '),
-                                  write(S),
-                                  write(', '),
                                   write(G),
+                                  write(', '),
+                                  write(S),
                                   write(' ]').
 
 % print location information
@@ -83,21 +83,24 @@ compute_signal_for_portals([Portal | RP], Loc, EG, EI, P, NewP):- get_signals(Po
 
 % update all other lists of portals with the new portal a location
 % added so they can be bidirectional
-update_portal_list(Place, New_Portal, Portal_List, New_Portal_List):- not(member([New_Portal, _], Portal_List)),
-                                                                      New_Portal_List = [[New_Portal, [Place]] | Portal_List].
+update_portal_list(Place, New_Portal, Portal_List, New_Portal_List, Portal_Size, New_Portal_Size):- not(member([New_Portal, _], Portal_List)),
+                                                                      New_Portal_List = [[New_Portal, [Place]] | Portal_List],
+                                                                      X is random(3), nth0(X, [2, 3, 4], Size),
+                                                                      New_Portal_Size = [[New_Portal, Size] | Portal_Size].
 
-update_portal_list(Place, New_Portal, Portal_List, New_Portal_List):- member([New_Portal, Portals], Portal_List),
+update_portal_list(Place, New_Portal, Portal_List, New_Portal_List, PS, PS):- member([New_Portal, Portals], Portal_List),
                                                                       not(member(Place, Portals)),
                                                                       replace([New_Portal, Portals],
                                                                           [New_Portal, [Place | Portals]],
                                                                           Portal_List,
                                                                           New_Portal_List).
 % generate portals for of a location unless they are already generated     
-generate_portal(Place,      _, Portal_List, Portal_List, Portal_Size,   _):- member([Place, Portals], Portal_List),
+generate_portal(Place,      _, Portal_List, Portal_List, Portal_Size,   _, Portal_Size):- member([Place, Portals], Portal_List),
                                               member([Place, Size], Portal_Size),
-                                              length(Portals, Size).
+                                              length(Portals, S),
+                                              S >= Size.
 
-generate_portal(Place, Places, Portal_List, NPortal_List, Portal_Size, SE):- member([Place, Portals], Portal_List),
+generate_portal(Place, Places, Portal_List, NPortal_List, Portal_Size, SE, New_PS):- member([Place, Portals], Portal_List),
                                                             member([Place, Size], Portal_Size),
                                                             Place = [X, Y],
                                                             not(length(Portals, Size)),
@@ -111,22 +114,36 @@ generate_portal(Place, Places, Portal_List, NPortal_List, Portal_Size, SE):- mem
                                                             length(Possible_Moves, L),
                                                             R is random(L),
                                                             nth0(R, Possible_Moves, New_Portal),
-                                                            update_portal_list(Place, New_Portal, Portal_List, Updated_Portal_List),
+                                                            update_portal_list(Place, New_Portal, Portal_List, Updated_Portal_List,
+                                                                               Portal_Size, NPS),
                                                             replace([Place, Portals], [Place, [New_Portal | Portals]], Updated_Portal_List, PL),
-                                                            generate_portal(Place, Places, PL, NPortal_List, Portal_Size, SE).
+                                                            generate_portal(Place, Places, PL, NPortal_List, NPS, SE, New_PS).
 
-generate_portal(Place, Places, Portal_List, NPortal_List, Portal_Size, SE):- not(member([Place, _], Portal_List)),
+generate_portal(Place, Places, Portal_List, NPortal_List, Portal_Size, SE, New_PS):- not(member([Place, _], Portal_List)),
                                                             X is random(3), nth0(X, [2, 3, 4], Size),
                                                             generate_portal(Place,
                                                                 Places,
                                                                 [[Place, []] | Portal_List],
                                                                 NPortal_List,
                                                                 [[Place, Size] | Portal_Size],
-                                                                SE).
+                                                                SE,
+                                                                New_PS).
 
 
 % select best portal based on signal information
 select_best_portal(Best_Portal, [], Best_Portal,     _,    _,        _,       _).
+
+select_best_portal(_, Portals, New_Portal, _, Loc, _, _):- findall(SE,
+                                                                    (member([[NX, NY], SE, _], Portals),
+                                                                     not(member([NX, NY, gate], Loc))),
+                                                                     List),
+                                                                length(List, LP),
+                                                                length(Portals, LP),
+                                                                X is random(LP),
+                                                                nth0(X, Portals, New_Portal).
+
+                                                                                            
+
 
 select_best_portal(Best_Portal, [Portal | RPortals], New_Portal, Energy, Loc, GateEnergy, BestEnergy):- Portal = [[X, Y],   _,  _],
                                                               member([X, Y, gate], Loc),
@@ -164,6 +181,9 @@ select_best_portal(Best_Portal, [Portal | RPortals], New_Portal, Energy, Loc, Ga
                                                                   BestEnergy).
 
 % make a move
+
+%move(Place, Energy,      _,   _,   Portal_List,  _,  _,          _,            _,    _,  Portal_Size, Sol):- 
+%                                                                                                 check_portals(Portal_List, 
 move(Place, Energy,      _, Loc,           _, SE, SG, GateEnergy,            _, Path,  _, Sol):- get_coord(Place, X, Y),
                                                                                  member([X, Y, gate], Loc),
                                                                                  Sol = Path,
@@ -176,7 +196,7 @@ move(Place, Energy,      _, Loc,           _, SE, SG, GateEnergy,            _, 
 
 move(Place, Energy, Places, Loc, Portal_List, SE, SG, GateEnergy, PacketEnergy, Path, Portal_Size, Sol):- get_coord(Place, X, Y),
                       get_signals([X, Y], Loc, SG, SE, 0, 0, S, G),
-                      generate_portal([X, Y], Places, Portal_List, NPortal_List, Portal_Size, SE), !,
+                      generate_portal([X, Y], Places, Portal_List, NPortal_List, Portal_Size, SE, New_Portal_Size), !,
                       member([[X, Y], Portals], NPortal_List),
                       print_current_loc_info(X, Y, Energy, G, S),
                       write(':  '),
@@ -190,7 +210,7 @@ move(Place, Energy, Places, Loc, Portal_List, SE, SG, GateEnergy, PacketEnergy, 
                       replace([NX, NY, energy], [NX, NY], Loc, New_Loc),
                       move([NX, NY],
                         New_Energy,
-                        Places, New_Loc, Portal_List, SE, SG, GateEnergy, PacketEnergy, [CurrLoc | Path], Portal_Size, Sol).
+                        Places, New_Loc, NPortal_List, SE, SG, GateEnergy, PacketEnergy, [CurrLoc | Path], New_Portal_Size, Sol).
 
 % start the quest
 go(problema(Loc, Packets, Gate), Sol):- member(Initial, Loc),
@@ -201,7 +221,7 @@ go(problema(Loc, Packets, Gate), Sol):- member(Initial, Loc),
                                            move(Initial, 0, Places, Loc, [], SE, SG, GateEnergy, PacketEnergy, [[X, Y, initial]], [], Sol).
 
 %go(problema([
-%            [15, 15], [43, 5], [9, 25, initial], [25, 25, gate],
+%            [15, 15], [43, 5], [9, 25, initial], [25, 25, gate],   
 %            [50, 14, energy], [13, 31], [29, 36, energy], [40, 31],
 %            [51, 33, energy]
 %        ], pachete(17, 10), poarta(20, 25)), Solutie).
